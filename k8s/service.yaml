@@ -1,0 +1,35 @@
+# ==============================================================================
+# Task Manager API - Kubernetes Service
+# ==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: task-manager-service
+  labels:
+    app: task-manager
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: task-manager
+---
+# ClusterIP Service for internal communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: task-manager-internal
+  labels:
+    app: task-manager
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: task-manager
