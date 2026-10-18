@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Student | _Nayanshi Singh_ — Student ID: _&lt;fill in&gt;_ |
+| Student | _Nayanshi Singh_ — Roll number: _23bcs10073_ |
 | Project | Task Manager API (Spring Boot REST service) |
 | Repository | https://github.com/NayanshiSingh/task-manager-devops |
 | Baseline commit | [`f40c954985398e6f89ad49565462f30cf43013b6`](https://github.com/NayanshiSingh/task-manager-devops/commit/f40c954985398e6f89ad49565462f30cf43013b6) |
