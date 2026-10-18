@@ -1,0 +1,15 @@
+# Minimal kube-prometheus-stack for a local cluster.
+# helm upgrade --install monitoring prometheus-community/kube-prometheus-stack -n observability -f this-file
+grafana:
+  adminPassword: ""          # chart generates one; read it from the grafana Secret
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+alertmanager:
+  enabled: true

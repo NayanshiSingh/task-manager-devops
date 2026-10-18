@@ -1,0 +1,7 @@
+# Risk-accepted findings. Each entry needs a reason and an expiry; after the expiry the CI gate fails again.
+# Fix is only in Spring Framework 7 (Spring Boot 4 migration, tracked as follow-up).
+
+# RCE via XsltView path handling: the app never renders views (JSON @RestController only, no XsltView bean).
+CVE-2026-47884 exp:2026-12-31
+# SSE stream corruption with view rendering: the app exposes no Server-Sent Events endpoints.
+CVE-2026-47890 exp:2026-12-31

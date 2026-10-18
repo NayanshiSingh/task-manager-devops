@@ -1,0 +1,8 @@
+# Ephemeral kind cluster in GitHub Actions: smaller footprint, no monitoring CRDs
+replicaCount: 2
+autoscaling:
+  enabled: false
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi

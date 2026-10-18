@@ -1,0 +1,71 @@
+# Default values. Environment-specific overrides live in values-<env>.yaml;
+# the image tag is always set at deploy time to the git commit SHA.
+image:
+  repository: ghcr.io/nayanshisingh/task-manager-devops
+  tag: ""            # required: git SHA (set by CI / scripts/deploy-local.sh)
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+strategy:
+  # Zero-downtime rolling update: a new pod must be Ready before an old one is removed
+  maxSurge: 1
+  maxUnavailable: 0
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  host: task-manager.local
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 320Mi
+  limits:
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  minAvailable: 1
+
+config:
+  logFormat: ecs
+  tracingEnabled: "false"
+  tracingSampleRate: "1.0"
+  otlpEndpoint: http://jaeger-collector.observability.svc:4318/v1/traces
+  dbPoolSize: "5"
+
+database:
+  # Name of an existing Secret with keys: username, password. Created out-of-band
+  # (scripts/create-secret.sh) so no credential is ever stored in git.
+  existingSecret: task-manager-db
+  name: tasks
+  image: postgres:16-alpine
+  storage: 1Gi
+  storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+networkPolicy:
+  enabled: true
+
+monitoring:
+  # Requires the Prometheus Operator CRDs (kube-prometheus-stack)
+  serviceMonitor: false
+  prometheusRule: false
+  dashboard: false
+  serviceMonitorLabels:
+    release: monitoring

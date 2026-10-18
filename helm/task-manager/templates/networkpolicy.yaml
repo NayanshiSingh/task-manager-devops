@@ -1,0 +1,32 @@
+{{- if .Values.networkPolicy.enabled }}
+# Only the API pods may reach PostgreSQL.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tm.name" . }}-db
+  labels: {{- include "tm.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "tm.dbSelector" . | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {{- include "tm.selector" . | nindent 14 }}
+      ports:
+        - port: 5432
+---
+# API pods accept HTTP on 8080 only (from clients, ingress controller and Prometheus).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tm.name" . }}-api
+  labels: {{- include "tm.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "tm.selector" . | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - ports:
+        - port: 8080
+{{- end }}

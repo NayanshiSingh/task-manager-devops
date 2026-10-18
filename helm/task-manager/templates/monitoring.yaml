@@ -1,0 +1,77 @@
+{{- if .Values.monitoring.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "tm.name" . }}
+  labels:
+    {{- include "tm.labels" . | nindent 4 }}
+    {{- toYaml .Values.monitoring.serviceMonitorLabels | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "tm.name" . }}
+      app.kubernetes.io/component: api
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+{{- end }}
+{{- if .Values.monitoring.prometheusRule }}
+---
+# SLOs: 99% of API requests succeed (non-5xx); 95% of API requests complete under 500ms.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "tm.name" . }}
+  labels:
+    {{- include "tm.labels" . | nindent 4 }}
+    {{- toYaml .Values.monitoring.serviceMonitorLabels | nindent 4 }}
+spec:
+  groups:
+    - name: task-manager.slo
+      rules:
+        - record: task_manager:http_error_ratio:rate5m
+          expr: |
+            sum(rate(http_server_requests_seconds_count{application="task-manager",uri=~"/api/.*",status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_server_requests_seconds_count{application="task-manager",uri=~"/api/.*"}[5m])), 1e-9)
+        - record: task_manager:http_latency_p95:rate5m
+          expr: |
+            histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application="task-manager",uri=~"/api/.*"}[5m])))
+        - alert: TaskManagerHighErrorRate
+          expr: task_manager:http_error_ratio:rate5m > 0.01
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Task Manager 5xx ratio above 1% SLO"
+            runbook: "docs/RUNBOOK.md#high-error-rate"
+        - alert: TaskManagerHighLatency
+          expr: task_manager:http_latency_p95:rate5m > 0.5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Task Manager p95 latency above 500ms"
+            runbook: "docs/RUNBOOK.md#high-latency"
+        - alert: TaskManagerNotReady
+          expr: kube_deployment_status_replicas_available{deployment="task-manager"} < 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "No Task Manager replicas are available"
+            runbook: "docs/RUNBOOK.md#no-ready-pods"
+{{- end }}
+{{- if .Values.monitoring.dashboard }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tm.name" . }}-dashboard
+  labels:
+    {{- include "tm.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  task-manager.json: |-
+{{ .Files.Get "dashboards/task-manager.json" | indent 4 }}
+{{- end }}
