@@ -29,7 +29,7 @@ concurrency:
 
 env:
   JAVA_VERSION: '17'
-  IMAGE: ghcr.io/${{ github.repository_owner }}/task-manager-devops
+  IMAGE: ghcr.io/nayanshisingh/task-manager-devops
 
 jobs:
   test:
