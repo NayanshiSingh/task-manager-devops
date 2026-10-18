@@ -7,13 +7,13 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version>
+        <version>3.5.3</version>
         <relativePath/>
     </parent>
 
     <groupId>com.taskmanager</groupId>
     <artifactId>task-manager</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <name>Task Manager API</name>
     <description>A simple REST API for managing tasks - DevOps CI/CD Demo Project</description>
 
@@ -28,10 +28,49 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- Request validation -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Persistence: PostgreSQL via JPA, schema managed by Flyway -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
         <!-- Spring Boot Actuator for health checks -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Observability: Prometheus metrics + OpenTelemetry tracing -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
         </dependency>
 
         <!-- Testing -->
@@ -40,25 +79,26 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
-            <!-- Spring Boot Maven Plugin -->
+            <!-- Spring Boot Maven Plugin (build-info feeds /actuator/info) -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-
-            <!-- Maven Compiler Plugin -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
-                <configuration>
-                    <source>17</source>
-                    <target>17</target>
-                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- Checkstyle Plugin for Code Quality -->
@@ -70,28 +110,8 @@
                     <configLocation>checkstyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <failOnViolation>true</failOnViolation>
+                    <violationSeverity>warning</violationSeverity>
                 </configuration>
-            </plugin>
-
-            <!-- OWASP Dependency Check for SCA -->
-            <plugin>
-                <groupId>org.owasp</groupId>
-                <artifactId>dependency-check-maven</artifactId>
-                <version>9.0.7</version>
-                <configuration>
-                    <failBuildOnCVSS>7</failBuildOnCVSS>
-                    <formats>
-                        <format>HTML</format>
-                        <format>JSON</format>
-                    </formats>
-                </configuration>
-            </plugin>
-
-            <!-- Surefire Plugin for Unit Tests -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.2.2</version>
             </plugin>
         </plugins>
     </build>

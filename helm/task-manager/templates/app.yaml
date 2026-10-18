@@ -1,0 +1,193 @@
+{{- if not .Values.image.tag }}{{ fail "image.tag is required (use the git commit SHA)" }}{{ end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "tm.name" . }}
+  labels: {{- include "tm.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tm.name" . }}-config
+  labels: {{- include "tm.labels" . | nindent 4 }}
+data:
+  DB_URL: jdbc:postgresql://{{ include "tm.name" . }}-db:5432/{{ .Values.database.name }}
+  DB_POOL_SIZE: {{ .Values.config.dbPoolSize | quote }}
+  LOG_FORMAT: {{ .Values.config.logFormat | quote }}
+  TRACING_ENABLED: {{ .Values.config.tracingEnabled | quote }}
+  TRACING_SAMPLE_RATE: {{ .Values.config.tracingSampleRate | quote }}
+  OTLP_ENDPOINT: {{ .Values.config.otlpEndpoint | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tm.name" . }}
+  labels: {{- include "tm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: {{ .Values.strategy.maxSurge }}
+      maxUnavailable: {{ .Values.strategy.maxUnavailable }}
+  selector:
+    matchLabels: {{- include "tm.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "tm.selector" . | nindent 8 }}
+        app.kubernetes.io/version: {{ .Values.image.tag | quote }}
+      annotations:
+        checksum/config: {{ .Values.config | toJson | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "tm.name" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {{- include "tm.selector" . | nindent 14 }}
+      containers:
+        - name: task-manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "tm.name" . }}-config
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: password
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.version={{ .Values.image.tag }}"
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          # Startup probe absorbs JVM + Flyway start time so liveness can stay strict
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Readiness includes the DB: a DB outage removes pods from the Service instead of restarting them
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tm.name" . }}
+  labels: {{- include "tm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  type: {{ .Values.service.type }}
+  selector: {{- include "tm.selector" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+{{- if .Values.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "tm.name" . }}
+  labels: {{- include "tm.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "tm.name" . }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "tm.name" . }}
+  labels: {{- include "tm.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels: {{- include "tm.selector" . | nindent 6 }}
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tm.name" . }}
+  labels: {{- include "tm.labels" . | nindent 4 }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "tm.name" . }}
+                port:
+                  name: http
+{{- end }}

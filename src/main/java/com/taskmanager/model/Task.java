@@ -1,17 +1,45 @@
 package com.taskmanager.model;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 import java.time.LocalDateTime;
 
 /**
  * Task entity representing a task in the system.
  */
+@Entity
+@Table(name = "tasks")
 public class Task {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @NotBlank
+    @Size(max = 200)
+    @Column(nullable = false, length = 200)
     private String title;
+
+    @Size(max = 2000)
+    @Column(length = 2000)
     private String description;
+
+    @Column(nullable = false)
     private boolean completed;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     /**
@@ -33,6 +61,17 @@ public class Task {
         this();
         this.title = title;
         this.description = description;
+    }
+
+    @PrePersist
+    void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 
     // Getters and Setters

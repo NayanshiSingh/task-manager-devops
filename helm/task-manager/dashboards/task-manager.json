@@ -1,0 +1,39 @@
+{
+  "title": "Task Manager API",
+  "uid": "task-manager",
+  "schemaVersion": 39,
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "timeseries", "title": "Request rate by status", "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [{ "expr": "sum by (status) (rate(http_server_requests_seconds_count{application=\"task-manager\",uri=~\"/api/.*\"}[5m]))", "legendFormat": "{{status}}" }]
+    },
+    {
+      "type": "timeseries", "title": "5xx error ratio (SLO 1%)", "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [{ "expr": "task_manager:http_error_ratio:rate5m", "legendFormat": "error ratio" }]
+    },
+    {
+      "type": "timeseries", "title": "p95 latency (SLO 500ms)", "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [{ "expr": "task_manager:http_latency_p95:rate5m", "legendFormat": "p95" }]
+    },
+    {
+      "type": "timeseries", "title": "Tasks created / deleted", "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "sum(rate(tasks_created_total[5m]))", "legendFormat": "created/s" },
+        { "expr": "sum(rate(tasks_deleted_total[5m]))", "legendFormat": "deleted/s" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "DB connection pool (active / pending)", "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "sum(hikaricp_connections_active{application=\"task-manager\"})", "legendFormat": "active" },
+        { "expr": "sum(hikaricp_connections_pending{application=\"task-manager\"})", "legendFormat": "pending" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "JVM heap used", "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [{ "expr": "sum by (pod) (jvm_memory_used_bytes{application=\"task-manager\",area=\"heap\"})", "legendFormat": "{{pod}}" }]
+    }
+  ]
+}

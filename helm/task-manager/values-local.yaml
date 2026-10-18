@@ -1,0 +1,7 @@
+# Local OrbStack / kind / Minikube cluster with the observability stack installed
+config:
+  tracingEnabled: "true"
+monitoring:
+  serviceMonitor: true
+  prometheusRule: true
+  dashboard: true

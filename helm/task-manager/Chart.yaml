@@ -1,0 +1,6 @@
+apiVersion: v2
+name: task-manager
+description: Task Manager API with PostgreSQL, probes, autoscaling, network policies and monitoring hooks
+type: application
+version: 0.1.0
+appVersion: "1.1.0"

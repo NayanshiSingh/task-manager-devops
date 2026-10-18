@@ -26,29 +26,30 @@ RUN mvn package -DskipTests -B
 # ------------------------------------------------------------------------------
 # Stage 2: Runtime
 # ------------------------------------------------------------------------------
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre
+
+# Traceability: the commit is baked into the image and reported by /actuator/info
+ARG GIT_SHA=local
+ARG IMAGE_TAG=local
+ENV GIT_SHA=${GIT_SHA} IMAGE_TAG=${IMAGE_TAG}
+LABEL org.opencontainers.image.source="https://github.com/NayanshiSingh/task-manager-devops" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.title="task-manager"
 
 # Create non-root user for security
-RUN addgroup -g 1001 appgroup && \
-    adduser -u 1001 -G appgroup -D appuser
+RUN groupadd -g 1001 appgroup && \
+    useradd -u 1001 -g appgroup -M -s /usr/sbin/nologin appuser
 
 WORKDIR /app
 
-# Copy the built JAR from builder stage
-COPY --from=builder /app/target/*.jar app.jar
-
-# Change ownership to non-root user
-RUN chown -R appuser:appgroup /app
+# Copy the built JAR from builder stage (owned by root, read-only for the app user)
+COPY --from=builder /app/target/task-manager-*.jar app.jar
 
 # Switch to non-root user
-USER appuser
+USER 1001:1001
 
 # Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
-
-# Run the application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Run the application; heap sized relative to the container memory limit
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-Djava.io.tmpdir=/tmp", "-jar", "app.jar"]

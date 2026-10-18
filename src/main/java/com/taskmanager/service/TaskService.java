@@ -1,30 +1,52 @@
 package com.taskmanager.service;
 
 import com.taskmanager.model.Task;
+import com.taskmanager.repository.TaskRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Service class for managing tasks.
- * Uses in-memory storage for simplicity.
+ * Tasks are persisted in PostgreSQL so every replica shares the same state.
  */
 @Service
 public class TaskService {
 
-    private final List<Task> tasks = new ArrayList<>();
-    private final AtomicLong idGenerator = new AtomicLong(1);
+    private static final Logger LOG = LoggerFactory.getLogger(TaskService.class);
+
+    private final TaskRepository repository;
+    private final Counter createdCounter;
+    private final Counter deletedCounter;
+
+    /**
+     * Creates the service.
+     *
+     * @param repository    task repository
+     * @param meterRegistry registry used for business metrics
+     */
+    public TaskService(TaskRepository repository, MeterRegistry meterRegistry) {
+        this.repository = repository;
+        this.createdCounter = Counter.builder("tasks_created")
+                .description("Tasks created").register(meterRegistry);
+        this.deletedCounter = Counter.builder("tasks_deleted")
+                .description("Tasks deleted").register(meterRegistry);
+    }
 
     /**
      * Get all tasks.
      *
      * @return list of all tasks
      */
+    @Transactional(readOnly = true)
     public List<Task> getAllTasks() {
-        return new ArrayList<>(tasks);
+        return repository.findAll();
     }
 
     /**
@@ -33,10 +55,9 @@ public class TaskService {
      * @param id the task ID
      * @return optional containing the task if found
      */
+    @Transactional(readOnly = true)
     public Optional<Task> getTaskById(Long id) {
-        return tasks.stream()
-                .filter(task -> task.getId().equals(id))
-                .findFirst();
+        return repository.findById(id);
     }
 
     /**
@@ -45,10 +66,13 @@ public class TaskService {
      * @param task the task to create
      * @return the created task with generated ID
      */
+    @Transactional
     public Task createTask(Task task) {
-        task.setId(idGenerator.getAndIncrement());
-        tasks.add(task);
-        return task;
+        task.setId(null);
+        Task saved = repository.save(task);
+        createdCounter.increment();
+        LOG.info("Created task id={}", saved.getId());
+        return saved;
     }
 
     /**
@@ -58,12 +82,13 @@ public class TaskService {
      * @param updatedTask the updated task data
      * @return optional containing the updated task if found
      */
+    @Transactional
     public Optional<Task> updateTask(Long id, Task updatedTask) {
-        return getTaskById(id).map(existingTask -> {
+        return repository.findById(id).map(existingTask -> {
             existingTask.setTitle(updatedTask.getTitle());
             existingTask.setDescription(updatedTask.getDescription());
             existingTask.setCompleted(updatedTask.isCompleted());
-            return existingTask;
+            return repository.save(existingTask);
         });
     }
 
@@ -73,8 +98,15 @@ public class TaskService {
      * @param id the task ID
      * @return true if task was deleted, false otherwise
      */
+    @Transactional
     public boolean deleteTask(Long id) {
-        return tasks.removeIf(task -> task.getId().equals(id));
+        if (!repository.existsById(id)) {
+            return false;
+        }
+        repository.deleteById(id);
+        deletedCounter.increment();
+        LOG.info("Deleted task id={}", id);
+        return true;
     }
 
     /**
@@ -82,15 +114,16 @@ public class TaskService {
      *
      * @return the total number of tasks
      */
-    public int getTaskCount() {
-        return tasks.size();
+    @Transactional(readOnly = true)
+    public long getTaskCount() {
+        return repository.count();
     }
 
     /**
      * Clear all tasks.
      */
+    @Transactional
     public void clearAllTasks() {
-        tasks.clear();
-        idGenerator.set(1);
+        repository.deleteAll();
     }
 }
